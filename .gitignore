@@ -1,0 +1,42 @@
+# .gitignore
+
+# Diretórios de ambiente virtual
+venv/
+.env/
+.venv/
+
+# Arquivos de configuração de ambiente
+.env
+
+# Bytecode do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cache de pacotes
+pip-wheel-metadata/
+*.egg-info/
+dist/
+build/
+
+# Configurações de editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Cache do pytest
+.pytest_cache/
+
+# Arquivos temporários
+*.swp
+*.swo
+
+# Configuração do Render (deixa o render.yaml visível, se tiver)
+# (não precisa ignorar o render.yaml)
+
