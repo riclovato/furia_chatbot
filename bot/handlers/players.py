@@ -33,7 +33,7 @@ FURIA_PLAYERS = [
         'full_name': 'Gabriel Toledo',
         'age': 33,
         'nationality': 'Brazil',
-        'role': 'IGL/AWPer',
+        'role': 'IGL/Rifler',
         'join_date': '2023-07-01',
         'photo_url': 'https://img-cdn.hltv.org/playerbodyshot/Wf26SO_o8nvnsLh0AqZXc5.png?ixlib=java-2.1.0&w=400&s=36b7189a4ae7b020d0acb087fd44777a'
     },
@@ -44,7 +44,7 @@ FURIA_PLAYERS = [
         'age': 20,
         'nationality': 'Kazakhstan',
         'role': 'AWPer',
-        'join_date': '2025-05-11',
+        'join_date': '2025-04-11',
         'photo_url': 'https://img-cdn.hltv.org/playerbodyshot/qNyAd_xVHTTmbCAKPx-jPk.png?ixlib=java-2.1.0&w=400&s=b128ede878e462107c70590202b14139'
     },
     {
@@ -94,16 +94,43 @@ async def button_handler(update: Update, context: CallbackContext):
             player_id = int(query.data.split("_")[1])
             player = next(p for p in FURIA_PLAYERS if p['id'] == player_id)
             
-            # Calcula tempo no time
+            # Cálculo do tempo no time
             join_date = datetime.strptime(player['join_date'], '%Y-%m-%d')
-            time_in_team = (datetime.now() - join_date).days // 365
+            today = datetime.now()
             
+            # Verifica se a data é futura
+            if join_date > today:
+                time_text = "🔜 Ainda não ingressou no time"
+            else:
+                # Calcula diferença
+                delta = today - join_date
+                total_days = delta.days
+                
+                years = total_days // 365
+                remaining_days = total_days % 365
+                months = remaining_days // 30
+
+                # Formatação do texto
+                time_parts = []
+                if years > 0:
+                    time_parts.append(f"{years} ano{'s' if years > 1 else ''}")
+                if months > 0:
+                    time_parts.append(f"{months} {'meses' if months > 1 else 'mês'}")
+                
+                if years == 0 and months == 0:
+                    if total_days == 0:
+                        time_text = "🏁 Ingressou hoje!"
+                    else:
+                        time_text = f"⏳ {total_days} dia{'s' if total_days > 1 else ''}"
+                else:
+                    time_text = " há " + " e ".join(time_parts)
+
             response = (
-                f"🐅 *{player['name']} ({player['full_name']})*\n\n"
+                f"🐾 *{player['name']} ({player['full_name']})*\n\n"
                 f"🌎 Nacionalidade: {player['nationality']}\n"
                 f"🎂 Idade: {player['age']} anos\n"
                 f"🎮 Função: {player['role']}\n"
-                f"📅 No time há: {time_in_team} {'ano' if time_in_team == 1 else 'anos'}\n\n"
+                f"📅 No time{time_text}\n\n"
                 f"📸 [Foto do jogador]({player['photo_url']})"
             )
             
