@@ -100,7 +100,6 @@ async def send_matches_list(status_msg, matches):
             f"🔗 Detalhes: {match['link']}\n\n"
         )
     
-    message += "\n🔄 Atualizado em: " + datetime.now().strftime("%d/%m/%Y %H:%M")
     
     await status_msg.edit_text(
         text=message,
