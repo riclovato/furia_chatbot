@@ -12,7 +12,6 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start - Mostra esta mensagem\n"
         "/team - Mostra o elenco atual\n"
         "/matches - Próximos jogos\n"
-        "/store - Compre itens da loja\n"
         "/socials - Redes sociais da FURIA\n"
         "Follow the steps 🐾"
     )

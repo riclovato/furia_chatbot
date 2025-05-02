@@ -10,13 +10,10 @@ logger = logging.getLogger(__name__)
 storage = JSONStorage()
 
 async def matches_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler principal para o comando /matches"""
     try:
-        # Verifica se é uma callback query
         if update.callback_query:
             return await handle_notification_callback(update, context)
 
-        # Verifica parâmetros de força atualização
         force_update = False
         if context.args and context.args[0].lower() == 'force':
             force_update = True
@@ -25,20 +22,16 @@ async def matches_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status_msg = await update.message.reply_text("🔍 Procurando partidas...")
 
         try:
-            # Obtém partidas com tratamento de erros
             matches = matches_scraper.get_furia_matches(force_update)
             
-            # Validação rigorosa dos dados
             if not _validate_matches(matches):
                 raise ValueError("Dados inválidos do scraper")
             
-            # Caso sem partidas
             if not matches:
                 await status_msg.edit_text("📅 Nenhuma partida agendada")
                 storage.clear_matches()
                 return
 
-            # Processamento bem-sucedido
             store_matches(matches)
             await send_matches_list(status_msg, matches)
 
@@ -51,25 +44,21 @@ async def matches_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_fallback(update)
 
 def _validate_matches(matches):
-    """Valida a estrutura dos dados das partidas"""
     required_keys = ['opponent', 'event', 'time', 'format', 'link']
     return all(
         all(key in match for key in required_keys) and
         isinstance(match['time'], str) and
-        len(match['opponent']) > 2
+        len(match['opponent']) >= 2 and
+        not match['opponent'].lower() == "furia"
         for match in matches
     )
 
 def store_matches(matches):
-    """Armazena partidas com validação de tempo"""
     try:
-        storage.clear_matches()
         valid_matches = []
-        
         for match in matches:
             try:
-                # Gera ID único baseado no tempo e adversário
-                match_time = datetime.strptime(match['time'], "%d/%m/%Y %H:%M")
+                match_time = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
                 if match_time < datetime.now():
                     continue
                     
@@ -86,26 +75,26 @@ def store_matches(matches):
                     'link': match['link'],
                     'notified': False
                 })
-                
             except ValueError as e:
                 logger.warning(f"Partida inválida: {str(e)}")
         
-        if valid_matches:
-            storage.add_matches(valid_matches)
-            
+        storage.add_matches(valid_matches)
+        
     except Exception as e:
         logger.error(f"Erro no armazenamento: {str(e)}")
         storage.clear_matches()
 
 async def send_matches_list(status_msg, matches):
-    """Envia a lista formatada de partidas"""
     message = "<b>🔴 Próximas Partidas da FURIA:</b>\n\n"
     
     for idx, match in enumerate(matches, 1):
+        dt = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
+        formatted_time = dt.strftime("%d/%m/%Y %H:%M")
+        
         message += (
             f"🏁 <b>Partida {idx}</b>\n"
             f"🆚 Adversário: <b>{match['opponent']}</b>\n"
-            f"📅 Data: <code>{match['time']}</code>\n"
+            f"📅 Data: <code>{formatted_time}</code>\n"
             f"🏆 Evento: {match['event']}\n"
             f"⚙ Formato: {match['format']}\n"
             f"🔗 Detalhes: {match['link']}\n\n"
@@ -118,13 +107,12 @@ async def send_matches_list(status_msg, matches):
         parse_mode="HTML",
         disable_web_page_preview=True,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔔 Ativar Notificações", callback_data="sub_on"),
-            InlineKeyboardButton("🔕 Desativar", callback_data="sub_off")
+            InlineKeyboardButton("🔔 Ativar Notificações", callback_data="notif_sub_on"),
+            InlineKeyboardButton("🔕 Desativar", callback_data="notif_sub_off")  
         ]])
     )
 
 async def handle_scrape_error(status_msg):
-    """Lida com erros de scraping"""
     cached_matches = storage.get_matches()
     
     if cached_matches:
@@ -143,13 +131,12 @@ async def handle_scrape_error(status_msg):
         )
 
 async def handle_notification_callback(update: Update, context: CallbackContext):
-    """Gerencia inscrições em notificações"""
     query = update.callback_query
     await query.answer()
     
     try:
         user_id = query.from_user.id
-        action = query.data
+        action = query.data.split("_")[1]  
         
         if action == "sub_on":
             storage.add_subscription(user_id)
@@ -167,7 +154,6 @@ async def handle_notification_callback(update: Update, context: CallbackContext)
         await query.edit_message_text(text="⚠️ Erro no processamento")
 
 async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
-    """Verifica partidas pendentes periodicamente"""
     try:
         now = datetime.now()
         matches = storage.get_matches()
@@ -175,7 +161,7 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
         for match in matches:
             if not match['notified']:
                 try:
-                    match_time = datetime.strptime(match['time'], "%d/%m/%Y %H:%M")
+                    match_time = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
                     if (match_time - timedelta(hours=1)) <= now < match_time:
                         await send_notification(context.bot, match)
                         storage.update_match_status(match['id'], True)
@@ -184,15 +170,17 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
                     
     except Exception as e:
         logger.error(f"Erro no job: {str(e)}")
-        context.job_queue.run_once(check_and_notify, 300)  # Tenta novamente em 5 min
+        context.job_queue.run_once(check_and_notify, 300)
 
 async def send_notification(bot, match):
-    """Envia notificação para usuários inscritos"""
+    dt = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
+    formatted_time = dt.strftime("%d/%m/%Y %H:%M")
+    
     message = (
         f"⏰ <b>Notificação de Partida!</b>\n\n"
         f"A partida contra {match['opponent']} começa em 1 hora!\n\n"
         f"🏆 {match['event']}\n"
-        f"⏰ {match['time']}\n"
+        f"⏰ {formatted_time}\n"
         f"🔗 {match['link']}"
     )
     
@@ -209,7 +197,6 @@ async def send_notification(bot, match):
             storage.remove_subscription(user_id)
 
 async def send_fallback(update: Update):
-    """Mensagem de fallback genérica"""
     await update.message.reply_text(
         "⚠️ Serviço temporariamente indisponível\n\n"
         "Consulte:\n"

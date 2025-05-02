@@ -11,31 +11,24 @@ class JSONStorage:
         self._ensure_data_file()
 
     def _ensure_data_file(self):
-        """Cria o arquivo e diretório se não existirem"""
         if not os.path.exists(self.file_path):
             os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
             with open(self.file_path, 'w') as f:
-                json.dump({
-                    'matches': [],
-                    'subscriptions': []
-                }, f)
+                json.dump({'matches': [], 'subscriptions': []}, f)
 
     def _read_data(self):
-        """Lê todos os dados do arquivo"""
         with open(self.file_path, 'r') as f:
             return json.load(f)
 
     def _write_data(self, data):
-        """Escreve dados no arquivo"""
         with open(self.file_path, 'w') as f:
             json.dump(data, f, indent=2)
 
-    # Métodos para matches
-    def add_match(self, match):
+    # Métodos de matches
+    def add_matches(self, matches):
         data = self._read_data()
-        if not any(m['id'] == match['id'] for m in data['matches']):
-            data['matches'].append(match)
-            self._write_data(data)
+        data['matches'] = matches
+        self._write_data(data)
 
     def get_matches(self):
         return self._read_data()['matches']
@@ -45,30 +38,27 @@ class JSONStorage:
         data['matches'] = []
         self._write_data(data)
 
-    # Métodos para subscriptions
+    # Métodos de subscriptions
     def add_subscription(self, user_id):
         data = self._read_data()
         if user_id not in data['subscriptions']:
             data['subscriptions'].append(user_id)
             self._write_data(data)
+            logger.info(f"Usuário {user_id} inscrito")
 
     def remove_subscription(self, user_id):
         data = self._read_data()
         if user_id in data['subscriptions']:
             data['subscriptions'].remove(user_id)
             self._write_data(data)
+            logger.info(f"Usuário {user_id} removido")
 
     def get_subscriptions(self):
         return self._read_data()['subscriptions']
 
-    def clear_subscriptions(self):
+    def update_match_status(self, match_id, status):
         data = self._read_data()
-        data['subscriptions'] = []
-        self._write_data(data)
-
-    def clear_all(self):
-        """Limpa todos os dados do storage"""
-        data = self._read_data()
-        data['matches'] = []
-        data['subscriptions'] = []
+        for match in data['matches']:
+            if match['id'] == match_id:
+                match['notified'] = status
         self._write_data(data)
