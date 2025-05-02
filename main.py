@@ -1,8 +1,11 @@
 import logging
 import os
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from apscheduler.schedulers.background import BackgroundScheduler
 from bot.handlers import start, players, matches, social, subscribe, unsubscribe
 from dotenv import load_dotenv
+from flask import Flask  # Novo
+from threading import Thread  # Novo
 
 # Configuração básica
 load_dotenv()
@@ -17,6 +20,17 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Cria app Flask (Novo)
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return "🟡⚫ FURIA Bot está online! ⚫🟡", 200
+
+@flask_app.route('/health')
+def health():
+    return "OK", 200
 
 async def start_handler(update, context):
     """Handler para o comando /start e mensagens desconhecidas"""
@@ -41,16 +55,23 @@ async def unknown_command(update, context):
     """Handler para comandos desconhecidos"""
     await start_handler(update, context)
 
+def run_flask():
+    """Inicia o servidor Flask em uma thread separada"""
+    flask_app.run(host='0.0.0.0', port=8080)
+
 def main():
     try:
         logger.info("Iniciando o bot...")
         
-        # Cria a aplicação
+        # Inicia servidor Flask (Novo)
+        Thread(target=run_flask, daemon=True).start()
+        
+        # Cria a aplicação do Telegram
         app = ApplicationBuilder() \
             .token(os.getenv("BOT_TOKEN")) \
             .build()
         
-        # Handlers principais (alta prioridade)
+        # Handlers principais
         app.add_handler(CommandHandler("start", start_handler))
         app.add_handler(CommandHandler("team", players.team_handler))
         app.add_handler(CommandHandler("matches", matches.matches_handler))
@@ -59,7 +80,7 @@ def main():
         app.add_handler(CommandHandler("unsubscribe", unsubscribe.unsubscribe_handler))
         app.add_handler(CallbackQueryHandler(players.button_handler))
 
-        # Handler para mensagens desconhecidas (baixa prioridade)
+        # Handler para mensagens desconhecidas
         app.add_handler(
             MessageHandler(
                 filters.ALL & ~filters.COMMAND,
@@ -67,6 +88,11 @@ def main():
             ),
             group=1
         )
+ 
+        # Keep-alive
+        scheduler = BackgroundScheduler(daemon=True)
+        scheduler.add_job(lambda: logger.info("🟢 Keep-alive"), 'interval', minutes=14)
+        scheduler.start()
 
         logger.info("Bot iniciado com sucesso")
         app.run_polling()

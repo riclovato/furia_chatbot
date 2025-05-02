@@ -32,5 +32,7 @@ USER seluser
 # Define variável de ambiente para o arquivo de log
 ENV LOG_FILE=/app/logs/bot.log
 
+EXPOSE 8080
+
 # Comando para iniciar a aplicação
 CMD ["python", "main.py"]
