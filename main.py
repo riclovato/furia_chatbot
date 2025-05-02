@@ -40,7 +40,7 @@ def main():
         app.add_handler(CommandHandler("start", start.start_handler))
         app.add_handler(CommandHandler("team", players.team_handler))
         app.add_handler(CommandHandler("matches", matches.matches_handler))
-        app.add_handler(CommandHandler("social", social.social_handler))
+        app.add_handler(CommandHandler("socials", social.social_handler))
        
 
          # Callback handlers com padrões específicos

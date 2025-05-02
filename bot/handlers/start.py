@@ -13,7 +13,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/team - Mostra o elenco atual\n"
         "/matches - Próximos jogos\n"
         "/socials - Redes sociais da FURIA\n"
-        "Follow the steps 🐾"
+        "\nFollow the steps 🐾"
     )
     
     await update.message.reply_text(
