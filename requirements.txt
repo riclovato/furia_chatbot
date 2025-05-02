@@ -6,3 +6,4 @@ selenium==4.11.2
 webdriver-manager==3.8.6
 python-telegram-bot[job-queue]==20.3
 python-dotenv==1.0.0
+Flask==2.1.3
