@@ -4,8 +4,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 from apscheduler.schedulers.background import BackgroundScheduler
 from bot.handlers import start, players, matches, social, subscribe, unsubscribe
 from dotenv import load_dotenv
-from flask import Flask  # Novo
-from threading import Thread  # Novo
+from flask import Flask
+from threading import Thread
 
 # Configuração básica
 load_dotenv()
@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Cria app Flask (Novo)
+# Cria app Flask
 flask_app = Flask(__name__)
 
 @flask_app.route('/')
@@ -32,29 +32,6 @@ def home():
 def health():
     return "OK", 200
 
-async def start_handler(update, context):
-    """Handler para o comando /start e mensagens desconhecidas"""
-    welcome_msg = (
-        "🟡⚫ <b>Bem-vindo ao FURIA CS2 Bot!</b> ⚫🟡\n\n"
-        "⚡ <b>Comandos disponíveis:</b>\n"
-        "/start - Mostra esta mensagem\n"
-        "/team - Mostra o elenco atual\n"
-        "/matches - Próximos jogos\n"
-        "/social - Redes sociais da FURIA\n"
-        "/subscribe - Inscreva-se para notificações\n"
-        "/unsubscribe - Cancele sua inscrição\n\n"
-        "Follow the steps 🐾"
-    )
-    
-    await update.message.reply_text(
-        welcome_msg,
-        parse_mode="HTML"
-    )
-
-async def unknown_command(update, context):
-    """Handler para comandos desconhecidos"""
-    await start_handler(update, context)
-
 def run_flask():
     """Inicia o servidor Flask em uma thread separada"""
     flask_app.run(host='0.0.0.0', port=8080)
@@ -63,7 +40,7 @@ def main():
     try:
         logger.info("Iniciando o bot...")
         
-        # Inicia servidor Flask (Novo)
+        # Inicia servidor Flask em thread separada
         Thread(target=run_flask, daemon=True).start()
         
         # Cria a aplicação do Telegram
@@ -71,8 +48,8 @@ def main():
             .token(os.getenv("BOT_TOKEN")) \
             .build()
         
-        # Handlers principais
-        app.add_handler(CommandHandler("start", start_handler))
+        # Adiciona handlers
+        app.add_handler(CommandHandler("start", start.start_handler))
         app.add_handler(CommandHandler("team", players.team_handler))
         app.add_handler(CommandHandler("matches", matches.matches_handler))
         app.add_handler(CommandHandler("social", social.social_handler))
@@ -84,7 +61,7 @@ def main():
         app.add_handler(
             MessageHandler(
                 filters.ALL & ~filters.COMMAND,
-                unknown_command
+                start.start_handler  # Reutiliza o handler de start
             ),
             group=1
         )
