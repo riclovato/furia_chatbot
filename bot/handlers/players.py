@@ -145,4 +145,3 @@ async def button_handler(update: Update, context: CallbackContext):
             text="⚠️ Ocorreu um erro ao buscar informações. Tente novamente.",
             parse_mode="Markdown"
         )
-

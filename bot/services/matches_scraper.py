@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 import time
 import re
 from datetime import datetime
-from webdriver_manager.chrome import ChromeDriverManager
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +25,16 @@ class MatchesScraper:
         self.chrome_options.add_argument("--window-size=1920x1080")
         self.chrome_options.add_argument("--disable-dev-shm-usage")
         self.chrome_options.add_argument("--no-sandbox")
+        self.chrome_options.add_argument("--disable-extensions")
         self.chrome_options.add_argument("--enable-unsafe-swiftshader")
         self.chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     def _get_driver(self):
-        """Inicializa e retorna o WebDriver"""
+        """Inicializa e retorna o WebDriver usando o Chrome e ChromeDriver já instalados"""
         try:
-            service = Service(ChromeDriverManager().install())
-            return webdriver.Chrome(service=service, options=self.chrome_options)
+           
+            logger.info("Iniciando ChromeDriver diretamente")
+            return webdriver.Chrome(options=self.chrome_options)
         except Exception as e:
             logger.error(f"Erro ao iniciar ChromeDriver: {str(e)}")
             raise
@@ -87,7 +89,7 @@ class MatchesScraper:
 
     def _extract_match_data(self, match_text):
         """Extrai os dados de uma partida do texto"""
-        # Identificação melhorada de times
+      
         teams = re.findall(r'\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\b', match_text)
         away_team = next((t for t in teams if t.lower() != "furia"), "Desconhecido")
 
@@ -106,7 +108,7 @@ class MatchesScraper:
         }
 
     def _extract_event(self, text):
-        """Extrai o nome do evento com melhor precisão"""
+        """Extrai o nome do evento com precisão"""
         event_match = re.search(r'(?P<event>[A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\s\d{4}', text)
         return event_match.group('event') if event_match else "Evento desconhecido"
 
