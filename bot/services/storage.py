@@ -1,28 +1,40 @@
 import json
 import os
-from datetime import datetime
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
 class JSONStorage:
-    def __init__(self, file_path='data/storage.json'):
-        self.file_path = file_path
+    def __init__(self, file_path=None):
+        self.file_path = file_path or os.path.join(Path(__file__).parent.parent, 'data', 'storage.json')
         self._ensure_data_file()
 
     def _ensure_data_file(self):
-        if not os.path.exists(self.file_path):
+        try:
             os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-            with open(self.file_path, 'w') as f:
-                json.dump({'matches': [], 'subscriptions': []}, f)
+            if not os.path.exists(self.file_path):
+                with open(self.file_path, 'w') as f:
+                    json.dump({'matches': [], 'subscriptions': []}, f)
+        except Exception as e:
+            logger.error(f"Falha ao criar arquivo: {str(e)}")
+            raise
 
     def _read_data(self):
-        with open(self.file_path, 'r') as f:
-            return json.load(f)
+        try:
+            with open(self.file_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Erro na leitura: {str(e)}")
+            return {'matches': [], 'subscriptions': []}
 
     def _write_data(self, data):
-        with open(self.file_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        try:
+            with open(self.file_path, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.error(f"Erro na escrita: {str(e)}")
+            raise
 
     # Métodos de matches
     def add_matches(self, matches):

@@ -107,8 +107,8 @@ async def send_matches_list(status_msg, matches):
         parse_mode="HTML",
         disable_web_page_preview=True,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔔 Ativar Notificações", callback_data="notif_sub_on"),
-            InlineKeyboardButton("🔕 Desativar", callback_data="notif_sub_off")  
+            InlineKeyboardButton("🔔 Ativar Notificações", callback_data="notif_on"),
+            InlineKeyboardButton("🔕 Desativar", callback_data="notif_off")
         ]])
     )
 
@@ -136,12 +136,12 @@ async def handle_notification_callback(update: Update, context: CallbackContext)
     
     try:
         user_id = query.from_user.id
-        action = query.data.split("_")[1]  
+        action = query.data.split("_")[1]  # Extrai "on" ou "off"
         
-        if action == "sub_on":
+        if action == "on":
             storage.add_subscription(user_id)
             msg = "✅ Você receberá notificações 1h antes das partidas!"
-        elif action == "sub_off":
+        elif action == "off":
             storage.remove_subscription(user_id)
             msg = "🔕 Notificações desativadas com sucesso"
         else:
