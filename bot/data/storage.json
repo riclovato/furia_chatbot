@@ -1,14 +1,17 @@
 {
   "matches": [
     {
-      "id": "af272b0d20631fdf6d6b2f0f02f1429f",
+      "id": "d647be9e8a50957601e9e3e5f3a9b3a1",
       "opponent": "The MongolZ",
       "event": "PGL Astana 2025",
-      "time": "2025-05-10 02:00",
+      "time": "2025-05-10 05:00",
       "format": "",
       "link": "https://draft5.gg/partida/36905-The-MongolZ-vs-FURIA-PGL-Astana-2025",
       "notified": false
     }
   ],
-  "subscriptions": []
+  "subscriptions": [
+    1902000201,
+    1881088918
+  ]
 }
