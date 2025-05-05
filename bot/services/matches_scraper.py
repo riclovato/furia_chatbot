@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta 
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -148,25 +148,21 @@ class MatchesScraper:
         Extrai o horário do container e combina com a data base (page_date).
         Se houver indicação de outro dia no próprio container, usa-o.
         """
-        # Pega o texto do horário (HH:MM)
         try:
             time_el = container.find_element(
                 By.CSS_SELECTOR, 'small[class*="MatchTime"]'
             )
             full_time_text = time_el.text
-            # Procurar padrão HH:MM
             m = re.search(r'(\d{1,2}:\d{2})', full_time_text)
             hour_text = m.group(1) if m else full_time_text.strip()
         except:
             logger.warning("Não foi possível extrair o horário, usando 12:00")
             hour_text = "12:00"
 
-        # Determina dia/mês/ano base
         day = page_date.day
         month = page_date.month
         year = page_date.year
 
-        # Tenta encontrar um dia explícito no texto do container
         try:
             raw = container.text
             m_day = re.search(r'(\d{1,2})[^\d]+\d{1,2}:\d{2}', raw)
@@ -177,11 +173,13 @@ class MatchesScraper:
 
         dt_str = f"{year}-{month:02d}-{day:02d} {hour_text}"
         try:
-            return datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+            dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+            dt -= timedelta(hours=3)  #subtrai 3 horas para ajustar para o horário de Brasília no render
+            return dt
         except ValueError:
             logger.error(f"Falha ao converter datetime '{dt_str}', usando agora()")
-            return datetime.now()
+            return datetime.now() - timedelta(hours=3)  
 
 
-# Instância pronta para uso
+
 matches_scraper = MatchesScraper()
