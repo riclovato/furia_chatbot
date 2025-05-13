@@ -44,9 +44,10 @@ async def matches_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_fallback(update)
 
 def _validate_matches(matches):
-    required_keys = ['opponent', 'event', 'time', 'format', 'link']
+    required_keys = ['opponent', 'event', 'date', 'time', 'format', 'link']
     return all(
         all(key in match for key in required_keys) and
+        isinstance(match['date'], str) and
         isinstance(match['time'], str) and
         len(match['opponent']) >= 2 and
         not match['opponent'].lower() == "furia"
@@ -58,25 +59,22 @@ def store_matches(matches):
         valid_matches = []
         for match in matches:
             try:
-                match_time = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
-                if match_time < datetime.now():
-                    continue
-                    
                 match_id = hashlib.md5(
-                    f"{match_time.timestamp()}_{match['opponent']}".encode()
+                    f"{match['date']}_{match['opponent']}".encode()
                 ).hexdigest()
                 
                 valid_matches.append({
                     'id': match_id,
                     'opponent': match['opponent'],
                     'event': match['event'],
+                    'date': match['date'],
                     'time': match['time'],
                     'format': match['format'],
                     'link': match['link'],
                     'notified': False
                 })
-            except ValueError as e:
-                logger.warning(f"Partida inválida: {str(e)}")
+            except KeyError as e:
+                logger.warning(f"Partida incompleta: {str(e)}")
         
         storage.add_matches(valid_matches)
         
@@ -88,18 +86,23 @@ async def send_matches_list(status_msg, matches):
     message = "<b>🔴 Próximas Partidas da FURIA:</b>\n\n"
     
     for idx, match in enumerate(matches, 1):
-        dt = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
-        formatted_time = dt.strftime("%d/%m/%Y %H:%M")
+        # Formatação da data
+        try:
+            formatted_date = datetime.strptime(match['date'], "%Y-%m-%d").strftime("%d/%m/%Y")
+        except:
+            formatted_date = "Data inválida"  # Fallback seguro
+        
+        # Formatação do horário
+        time_display = "🕒 <i>A definir</i>" if match['time'] == "TBA" else match['time']
         
         message += (
             f"🏁 <b>Partida {idx}</b>\n"
             f"🆚 Adversário: <b>{match['opponent']}</b>\n"
-            f"📅 Data: <code>{formatted_time}</code>\n"
+            f"📅 Data: <code>{formatted_date}</code>\n" 
             f"🏆 Evento: {match['event']}\n"
             f"⚙ Formato: {match['format']}\n"
             f"🔗 Detalhes: {match['link']}\n\n"
         )
-    
     
     await status_msg.edit_text(
         text=message,
@@ -110,7 +113,6 @@ async def send_matches_list(status_msg, matches):
             InlineKeyboardButton("🔕 Desativar", callback_data="notif_off")
         ]])
     )
-
 async def handle_scrape_error(status_msg):
     cached_matches = storage.get_matches()
     
@@ -135,7 +137,7 @@ async def handle_notification_callback(update: Update, context: CallbackContext)
     
     try:
         user_id = query.from_user.id
-        action = query.data.split("_")[1]  # Extrai "on" ou "off"
+        action = query.data.split("_")[1]
         
         if action == "on":
             storage.add_subscription(user_id)
@@ -158,7 +160,7 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
         matches = storage.get_matches()
         
         for match in matches:
-            if not match['notified']:
+            if not match['notified'] and match['time'] != "TBA":
                 try:
                     match_time = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
                     if (match_time - timedelta(hours=1)) <= now < match_time:
@@ -172,28 +174,34 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
         context.job_queue.run_once(check_and_notify, 300)
 
 async def send_notification(bot, match):
-    dt = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
-    formatted_time = dt.strftime("%d/%m/%Y %H:%M")
-    
-    message = (
-        f"⏰ <b>Notificação de Partida!</b>\n\n"
-        f"A partida contra {match['opponent']} começa em 1 hora!\n\n"
-        f"🏆 {match['event']}\n"
-        f"⏰ {formatted_time}\n"
-        f"🔗 {match['link']}"
-    )
-    
-    for user_id in storage.get_subscriptions():
-        try:
-            await bot.send_message(
-                chat_id=user_id,
-                text=message,
-                parse_mode="HTML",
-                disable_web_page_preview=True
-            )
-        except Exception as e:
-            logger.warning(f"Falha na notificação para {user_id}: {str(e)}")
-            storage.remove_subscription(user_id)
+    if match['time'] == "TBA":
+        return
+
+    try:
+        dt = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
+        formatted_time = dt.strftime("%d/%m/%Y %H:%M")
+        
+        message = (
+            f"⏰ <b>Notificação de Partida!</b>\n\n"
+            f"A partida contra {match['opponent']} começa em 1 hora!\n\n"
+            f"🏆 {match['event']}\n"
+            f"⏰ {formatted_time}\n"
+            f"🔗 {match['link']}"
+        )
+        
+        for user_id in storage.get_subscriptions():
+            try:
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=message,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True
+                )
+            except Exception as e:
+                logger.warning(f"Falha na notificação para {user_id}: {str(e)}")
+                storage.remove_subscription(user_id)
+    except Exception as e:
+        logger.error(f"Erro ao enviar notificação: {str(e)}")
 
 async def send_fallback(update: Update):
     await update.message.reply_text(

@@ -44,7 +44,7 @@ def main():
        
 
          # Callback handlers com padrões específicos
-        app.add_handler(CallbackQueryHandler(matches.handle_notification_callback, pattern="^notif_"))  # Adicionado
+        app.add_handler(CallbackQueryHandler(matches.handle_notification_callback, pattern="^notif_"))  
         app.add_handler(CallbackQueryHandler(players.button_handler, pattern="^player_"))
 
         # Handler para mensagens desconhecidas

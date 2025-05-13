@@ -127,13 +127,14 @@ class MatchesScraper:
                 except:
                     event_text = ""
 
-                # Extrair data e hora usando a data base da página
-                match_datetime = self._extract_date_time(container, page_date)
-                logger.info(f"Data/hora extraída: {match_datetime}")
+                # Extrair data e hora
+                datetime_info = self._extract_date_time(container, page_date)
+                logger.info(f"Data/hora extraída: {datetime_info}")
 
                 matches.append({
                     'opponent': opponent,
-                    'time': match_datetime.strftime("%Y-%m-%d %H:%M"),
+                    'date': datetime_info['date_str'],
+                    'time': datetime_info['time_str'],
                     'format': format_text,
                     'event': event_text,
                     'link': container.get_attribute('href')
@@ -144,42 +145,56 @@ class MatchesScraper:
         return matches
 
     def _extract_date_time(self, container, page_date):
-        """
-        Extrai o horário do container e combina com a data base (page_date).
-        Se houver indicação de outro dia no próprio container, usa-o.
-        """
+        """Extrai data/hora tratando TBA corretamente"""
         try:
             time_el = container.find_element(
                 By.CSS_SELECTOR, 'small[class*="MatchTime"]'
             )
-            full_time_text = time_el.text
-            m = re.search(r'(\d{1,2}:\d{2})', full_time_text)
-            hour_text = m.group(1) if m else full_time_text.strip()
+            time_text = time_el.text.strip().upper()
         except:
-            logger.warning("Não foi possível extrair o horário, usando 12:00")
-            hour_text = "12:00"
+            time_text = "TBA"
 
-        day = page_date.day
-        month = page_date.month
-        year = page_date.year
+        # Verifica TBA
+        if "TBA" in time_text:
+            return {
+                'date_str': page_date.strftime("%Y-%m-%d"),
+                'time_str': "TBA"
+            }
 
+        # Tenta extrair horário
+        time_match = re.search(r'(\d{1,2}:\d{2})', time_text)
+        if not time_match:
+            return {
+                'date_str': page_date.strftime("%Y-%m-%d"),
+                'time_str': "TBA"
+            }
+
+        hour_text = time_match.group(1)
+
+        # Tenta extrair dia específico
         try:
             raw = container.text
-            m_day = re.search(r'(\d{1,2})[^\d]+\d{1,2}:\d{2}', raw)
-            if m_day:
-                day = int(m_day.group(1))
+            day_match = re.search(r'(\d{1,2})\s+de\s+\w+', raw) or re.search(r'(\d{1,2})[/-]', raw)
+            day = int(day_match.group(1)) if day_match else page_date.day
         except:
-            pass
+            day = page_date.day
 
-        dt_str = f"{year}-{month:02d}-{day:02d} {hour_text}"
+        # Formata data
         try:
-            dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
-            dt -= timedelta(hours=3)  #subtrai 3 horas para ajustar para o horário de Brasília no render
-            return dt
-        except ValueError:
-            logger.error(f"Falha ao converter datetime '{dt_str}', usando agora()")
-            return datetime.now() - timedelta(hours=3)  
-
+            dt = datetime.strptime(
+                f"{page_date.year}-{page_date.month}-{day} {hour_text}",
+                "%Y-%m-%d %H:%M"
+            )
+            dt -= timedelta(hours=3)  # Ajuste para Brasília
+            return {
+                'date_str': dt.strftime("%Y-%m-%d"),
+                'time_str': dt.strftime("%H:%M")
+            }
+        except:
+            return {
+                'date_str': page_date.strftime("%Y-%m-%d"),
+                'time_str': "TBA"
+            }
 
 
 matches_scraper = MatchesScraper()
