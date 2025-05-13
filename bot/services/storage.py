@@ -1,76 +1,55 @@
 import json
 import os
-from pathlib import Path
-import logging
-
-logger = logging.getLogger(__name__)
+from typing import List, Dict
+from datetime import datetime
 
 class JSONStorage:
-    def __init__(self, file_path=None):
-        self.file_path = file_path or os.path.join(Path(__file__).parent.parent, 'data', 'storage.json')
-        self._ensure_data_file()
+    def __init__(self, file_path: str = "data/storage.json"):
+        self.file_path = file_path
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        self.data = self._load_data()
 
-    def _ensure_data_file(self):
-        try:
-            os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-            if not os.path.exists(self.file_path):
-                with open(self.file_path, 'w') as f:
-                    json.dump({'matches': [], 'subscriptions': []}, f)
-        except Exception as e:
-            logger.error(f"Falha ao criar arquivo: {str(e)}")
-            raise
-
-    def _read_data(self):
-        try:
+    def _load_data(self):
+        if os.path.exists(self.file_path):
             with open(self.file_path, 'r') as f:
                 return json.load(f)
-        except Exception as e:
-            logger.error(f"Erro na leitura: {str(e)}")
-            return {'matches': [], 'subscriptions': []}
+        return {'matches': [], 'subscriptions': {}}
 
-    def _write_data(self, data):
-        try:
-            with open(self.file_path, 'w') as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            logger.error(f"Erro na escrita: {str(e)}")
-            raise
+    def save(self):
+        with open(self.file_path, 'w') as f:
+            json.dump(self.data, f, indent=2)
 
-    # Métodos de matches
-    def add_matches(self, matches):
-        data = self._read_data()
-        data['matches'] = matches
-        self._write_data(data)
+    def add_matches(self, matches: List[Dict]):
+        self.data['matches'] = matches
+        self.save()
 
-    def get_matches(self):
-        return self._read_data()['matches']
+    def get_matches(self) -> List[Dict]:
+        return self.data.get('matches', [])
 
     def clear_matches(self):
-        data = self._read_data()
-        data['matches'] = []
-        self._write_data(data)
+        self.data['matches'] = []
+        self.save()
 
-    # Métodos de subscriptions
-    def add_subscription(self, user_id):
-        data = self._read_data()
-        if user_id not in data['subscriptions']:
-            data['subscriptions'].append(user_id)
-            self._write_data(data)
-            logger.info(f"Usuário {user_id} inscrito")
+    def add_subscription(self, user_id: int, match_id: str):
+        subs = self.data['subscriptions']
+        user_subs = subs.get(str(user_id), [])
+        if match_id not in user_subs:
+            user_subs.append(match_id)
+            subs[str(user_id)] = user_subs
+            self.save()
 
-    def remove_subscription(self, user_id):
-        data = self._read_data()
-        if user_id in data['subscriptions']:
-            data['subscriptions'].remove(user_id)
-            self._write_data(data)
-            logger.info(f"Usuário {user_id} removido")
+    def remove_subscription(self, user_id: int, match_id: str):
+        subs = self.data['subscriptions']
+        user_subs = subs.get(str(user_id), [])
+        if match_id in user_subs:
+            user_subs.remove(match_id)
+            self.save()
 
-    def get_subscriptions(self):
-        return self._read_data()['subscriptions']
+    def get_subscriptions(self) -> Dict[str, List[str]]:
+        return self.data.get('subscriptions', {})
 
-    def update_match_status(self, match_id, status):
-        data = self._read_data()
-        for match in data['matches']:
+    def update_match_status(self, match_id: str, notified: bool):
+        for match in self.data['matches']:
             if match['id'] == match_id:
-                match['notified'] = status
-        self._write_data(data)
+                match['notified'] = notified
+        self.save()
