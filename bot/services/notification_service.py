@@ -1,70 +1,57 @@
-import logging
-from datetime import datetime, timedelta
 from telegram import Bot
-from .storage import JSONStorage
+from datetime import datetime, timedelta
+import logging
+from database.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
 class NotificationService:
-    def __init__(self, bot_token: str):
+    def __init__(self, bot_token):
         self.bot = Bot(token=bot_token)
-        self.storage = JSONStorage()
+        self.db = DatabaseManager()
 
-    async def check_and_notify(self, context):
-        """Job principal para verificar notificações"""
+    def check_and_notify(self):
+        """Verifica e envia notificações"""
         try:
-            matches = self.storage.get_matches()
-            subscriptions = self.storage.get_subscriptions()
-            now = datetime.now()
-
+            matches = self.db.get_upcoming_matches()
             for match in matches:
-                if self._should_skip_match(match):
-                    continue
-
-                try:
-                    await self._process_match(match, subscriptions, now)
-                except Exception as e:
-                    logger.error(f"Erro na partida {match.get('id')}: {str(e)}")
-
+                match_id, opponent, event, match_time, _ = match
+                notify_time = datetime.strptime(match_time, '%Y-%m-%d %H:%M:%S') - timedelta(minutes=30)
+                
+                if datetime.now() >= notify_time:
+                    self._send_notifications(match_id, opponent, event, match_time)
+                    self.db.mark_as_notified(match_id)
         except Exception as e:
-            logger.error(f"Erro geral: {str(e)}")
+            logger.error(f"Erro na verificação de notificações: {e}")
 
-    def _should_skip_match(self, match):
-        return (
-            match.get('time') == "TBA" or 
-            match.get('notified', False) or
-            not match.get('time')
+    def _send_notifications(self, match_id, opponent, event, match_time):
+        """Envia notificações para usuários inscritos"""
+        subscribers = self.db.get_subscriptions()
+        message = (
+            f"⚡️ **Partida da FURIA se aproxima!** ⚡️\n\n"
+            f"🆚 **Adversário:** {opponent}\n"
+            f"🏆 **Evento:** {event}\n"
+            f"⏰ **Horário:** {match_time}"
         )
+        
+        for user in subscribers:
+            try:
+                self.bot.send_message(
+                    chat_id=user[0],
+                    text=message,
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                logger.error(f"Erro ao enviar notificação para {user[0]}: {e}")
 
-    async def _process_match(self, match, subscriptions, now):
-        match_time = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
-        notify_time = match_time - timedelta(hours=1)
-
-        if notify_time <= now < match_time:
-            await self._send_notifications(match, subscriptions)
-            self.storage.update_match_status(match['id'], True)
-
-    async def _send_notifications(self, match, subscriptions):
-        message = self._build_message(match)
-        for user_id_str, match_ids in subscriptions.items():
-            if match['id'] in match_ids:
-                await self._notify_user(user_id_str, message)
-
-    def _build_message(self, match):
-        return (
-            "⏰ **Notificação de Partida!**\n\n"
-            f"🆚 Adversário: {match['opponent']}\n"
-            f"🏆 Evento: {match['event']}\n"
-            f"⏰ Horário: {match['time']}\n"
-            f"🔗 Detalhes: {match['link']}"
-        )
-
-    async def _notify_user(self, user_id_str, message):
+    def cleanup_old_matches(self):
+        """Limpa partidas antigas"""
         try:
-            await self.bot.send_message(
-                chat_id=int(user_id_str),
-                text=message,
-                parse_mode="Markdown"
-            )
+            cursor = self.db.conn.cursor()
+            cursor.execute('''
+                DELETE FROM matches 
+                WHERE match_time < datetime('now', '-1 day')
+            ''')
+            self.db.conn.commit()
         except Exception as e:
-            logger.error(f"Erro ao notificar {user_id_str}: {str(e)}")
+            logger.error(f"Erro na limpeza de partidas: {e}")

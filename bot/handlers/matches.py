@@ -1,6 +1,6 @@
 import logging
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, CallbackContext
 from bot.services.matches_scraper import matches_scraper
@@ -86,17 +86,19 @@ async def send_matches_list(status_msg, matches):
     message = "<b>🔴 Próximas Partidas da FURIA:</b>\n\n"
     
     for idx, match in enumerate(matches, 1):
+        # Formatação da data
         try:
             formatted_date = datetime.strptime(match['date'], "%Y-%m-%d").strftime("%d/%m/%Y")
         except:
-            formatted_date = match['date']
+            formatted_date = "Data inválida"  # Fallback seguro
         
+        # Formatação do horário
         time_display = "🕒 <i>A definir</i>" if match['time'] == "TBA" else match['time']
         
         message += (
             f"🏁 <b>Partida {idx}</b>\n"
             f"🆚 Adversário: <b>{match['opponent']}</b>\n"
-            f"📅 Data: <code>{formatted_date}</code>\n"
+            f"📅 Data: <code>{formatted_date}</code>\n" 
             f"⏰ Horário: {time_display}\n"
             f"🏆 Evento: {match['event']}\n"
             f"⚙ Formato: {match['format']}\n"
@@ -108,54 +110,17 @@ async def send_matches_list(status_msg, matches):
         parse_mode="HTML",
         disable_web_page_preview=True,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔔 Ativar Notificações", callback_data=f"notif_on_{match['id']}"),
-            InlineKeyboardButton("🔕 Desativar", callback_data=f"notif_off_{match['id']}")
-        ] for match in matches])
+            InlineKeyboardButton("🔔 Ativar Notificações", callback_data="notif_on"),
+            InlineKeyboardButton("🔕 Desativar", callback_data="notif_off")
+        ]])
     )
-
-async def handle_notification_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-    
-    try:
-        data_parts = query.data.split('_')
-        action = data_parts[1]
-        match_id = data_parts[2]
-        
-        match = next((m for m in storage.get_matches() if m['id'] == match_id), None)
-        
-        if not match:
-            await query.edit_message_text("❌ Partida não encontrada")
-            return
-            
-        if match['time'] == "TBA":
-            await query.answer("⚠️ Notificações indisponíveis para horários não definidos", show_alert=True)
-            return
-
-        user_id = query.from_user.id
-        
-        if action == "on":
-            storage.add_subscription(user_id, match_id)
-            msg = f"✅ Notificações ativadas para vs {match['opponent']}!"
-        elif action == "off":
-            storage.remove_subscription(user_id, match_id)
-            msg = f"🔕 Notificações desativadas para vs {match['opponent']}"
-        else:
-            msg = "⚠️ Comando inválido"
-            
-        await query.edit_message_text(text=msg, parse_mode="HTML")
-        
-    except Exception as e:
-        logger.error(f"Erro na callback: {str(e)}")
-        await query.edit_message_text(text="⚠️ Erro no processamento")
-
 async def handle_scrape_error(status_msg):
     cached_matches = storage.get_matches()
     
     if cached_matches:
         await status_msg.edit_text(
             "⚠️ Dados possivelmente desatualizados:\n\n" +
-            "\n".join(f"• {m['opponent']} - {m['date']} {m['time']}" for m in cached_matches) +
+            "\n".join(f"• {m['opponent']} - {m['time']}" for m in cached_matches) +
             "\n\nUse /matches force para atualizar",
             parse_mode="HTML"
         )
@@ -166,6 +131,78 @@ async def handle_scrape_error(status_msg):
             "2. Verifique @furiaesports\n"
             "3. Tente novamente mais tarde"
         )
+
+async def handle_notification_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        user_id = query.from_user.id
+        action = query.data.split("_")[1]
+        
+        if action == "on":
+            storage.add_subscription(user_id)
+            msg = "✅ Você receberá notificações 1h antes das partidas!"
+        elif action == "off":
+            storage.remove_subscription(user_id)
+            msg = "🔕 Notificações desativadas com sucesso"
+        else:
+            msg = "⚠️ Comando inválido"
+            
+        await query.edit_message_text(text=msg, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Erro na callback: {str(e)}")
+        await query.edit_message_text(text="⚠️ Erro no processamento")
+
+async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
+    try:
+        now = datetime.now()
+        matches = storage.get_matches()
+        
+        for match in matches:
+            if not match['notified'] and match['time'] != "TBA":
+                try:
+                    match_time = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
+                    if (match_time - timedelta(hours=1)) <= now < match_time:
+                        await send_notification(context.bot, match)
+                        storage.update_match_status(match['id'], True)
+                except Exception as e:
+                    logger.error(f"Erro na notificação: {str(e)}")
+                    
+    except Exception as e:
+        logger.error(f"Erro no job: {str(e)}")
+        context.job_queue.run_once(check_and_notify, 300)
+
+async def send_notification(bot, match):
+    if match['time'] == "TBA":
+        return
+
+    try:
+        dt = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
+        formatted_time = dt.strftime("%d/%m/%Y %H:%M")
+        
+        message = (
+            f"⏰ <b>Notificação de Partida!</b>\n\n"
+            f"A partida contra {match['opponent']} começa em 1 hora!\n\n"
+            f"🏆 {match['event']}\n"
+            f"⏰ {formatted_time}\n"
+            f"🔗 {match['link']}"
+        )
+        
+        for user_id in storage.get_subscriptions():
+            try:
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=message,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True
+                )
+            except Exception as e:
+                logger.warning(f"Falha na notificação para {user_id}: {str(e)}")
+                storage.remove_subscription(user_id)
+    except Exception as e:
+        logger.error(f"Erro ao enviar notificação: {str(e)}")
 
 async def send_fallback(update: Update):
     await update.message.reply_text(

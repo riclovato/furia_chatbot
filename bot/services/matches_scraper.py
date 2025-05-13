@@ -1,13 +1,15 @@
 import logging
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta 
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
 
 class MatchesScraper:
     def __init__(self):
@@ -57,11 +59,16 @@ class MatchesScraper:
                 driver.quit()
 
     def _extract_page_date(self, driver):
+        """
+        Extrai a data principal da página (e.g. "📅 sábado, 10 de maio de 2025")
+        e retorna um objeto datetime com ano, mês e dia.
+        """
         try:
             el = driver.find_element(
                 By.CSS_SELECTOR, 'p[class*="MatchList__MatchListDate"]'
             )
             text = el.text.strip()
+            logger.info(f"Data principal encontrada: {text}")
             m = re.search(r'(\d{1,2}) de (\w+) de (\d{4})', text, re.IGNORECASE)
             if not m:
                 raise ValueError("Formato de data não reconhecido")
@@ -83,14 +90,21 @@ class MatchesScraper:
     def _scrape_matches(self, driver):
         driver.get("https://draft5.gg/equipe/330-FURIA/proximas-partidas")
         time.sleep(5)
+
         page_date = self._extract_page_date(driver)
+
+        logger.info("Página carregada. Buscando containers de partidas...")
         containers = driver.find_elements(
             By.CSS_SELECTOR, 'a[class*="MatchCardSimple__MatchContainer"]'
         )
+        logger.info(f"Encontrados {len(containers)} containers de partidas")
 
         matches = []
-        for container in containers:
+        for idx, container in enumerate(containers, start=1):
             try:
+                logger.info(f"Processando partida {idx}/{len(containers)}")
+
+                # Extrair times
                 teams = container.find_elements(
                     By.CSS_SELECTOR, 'div[class*="TeamNameAndLogo"] span'
                 )
@@ -99,19 +113,24 @@ class MatchesScraper:
                     (t for t in team_names if t.lower() != "furia"), "Desconhecido"
                 )
 
-                format_text = container.find_element(
-                    By.CSS_SELECTOR, 'div[class*="Badge"]'
-                ).text.strip() if container.find_elements(
-                    By.CSS_SELECTOR, 'div[class*="Badge"]'
-                ) else ""
+                # Extrair formato e evento
+                try:
+                    format_text = container.find_element(
+                        By.CSS_SELECTOR, 'div[class*="Badge"]'
+                    ).text.strip()
+                except:
+                    format_text = ""
+                try:
+                    event_text = container.find_element(
+                        By.CSS_SELECTOR, 'div[class*="Tournament"]'
+                    ).text.strip()
+                except:
+                    event_text = ""
 
-                event_text = container.find_element(
-                    By.CSS_SELECTOR, 'div[class*="Tournament"]'
-                ).text.strip() if container.find_elements(
-                    By.CSS_SELECTOR, 'div[class*="Tournament"]'
-                ) else ""
-
+                # Extrair data e hora
                 datetime_info = self._extract_date_time(container, page_date)
+                logger.info(f"Data/hora extraída: {datetime_info}")
+
                 matches.append({
                     'opponent': opponent,
                     'date': datetime_info['date_str'],
@@ -121,11 +140,12 @@ class MatchesScraper:
                     'link': container.get_attribute('href')
                 })
             except Exception as e:
-                logger.error(f"Erro ao processar partida: {e}")
+                logger.error(f"Erro ao processar partida {idx}: {e}")
 
         return matches
 
     def _extract_date_time(self, container, page_date):
+        """Extrai data/hora tratando TBA corretamente"""
         try:
             time_el = container.find_element(
                 By.CSS_SELECTOR, 'small[class*="MatchTime"]'
@@ -134,15 +154,24 @@ class MatchesScraper:
         except:
             time_text = "TBA"
 
+        # Verifica TBA
         if "TBA" in time_text:
-            return {'date_str': page_date.strftime("%Y-%m-%d"), 'time_str': "TBA"}
+            return {
+                'date_str': page_date.strftime("%Y-%m-%d"),
+                'time_str': "TBA"
+            }
 
+        # Tenta extrair horário
         time_match = re.search(r'(\d{1,2}:\d{2})', time_text)
         if not time_match:
-            return {'date_str': page_date.strftime("%Y-%m-%d"), 'time_str': "TBA"}
+            return {
+                'date_str': page_date.strftime("%Y-%m-%d"),
+                'time_str': "TBA"
+            }
 
         hour_text = time_match.group(1)
 
+        # Tenta extrair dia específico
         try:
             raw = container.text
             day_match = re.search(r'(\d{1,2})\s+de\s+\w+', raw) or re.search(r'(\d{1,2})[/-]', raw)
@@ -150,17 +179,22 @@ class MatchesScraper:
         except:
             day = page_date.day
 
+        # Formata data
         try:
             dt = datetime.strptime(
                 f"{page_date.year}-{page_date.month}-{day} {hour_text}",
                 "%Y-%m-%d %H:%M"
             )
-            dt -= timedelta(hours=3)
+            dt -= timedelta(hours=3)  # Ajuste para Brasília
             return {
                 'date_str': dt.strftime("%Y-%m-%d"),
                 'time_str': dt.strftime("%H:%M")
             }
         except:
-            return {'date_str': page_date.strftime("%Y-%m-%d"), 'time_str': "TBA"}
+            return {
+                'date_str': page_date.strftime("%Y-%m-%d"),
+                'time_str': "TBA"
+            }
+
 
 matches_scraper = MatchesScraper()
