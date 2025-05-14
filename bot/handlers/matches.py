@@ -163,10 +163,21 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
         for match in matches:
             if not match['notified'] and match['time'] != "TBA":
                 try:
-                    match_time = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
-                    if (match_time - timedelta(hours=1)) <= now < match_time:
-                        await send_notification(context.bot, match)
-                        storage.update_match_status(match['id'], True)
+                    # Combinar a data e hora antes de converter para datetime
+                    date_str = match['date']  # Formato "%Y-%m-%d"
+                    time_str = match['time']  # Formato "HH:MM"
+                    
+                    # Verificar se time_str contém apenas hora (sem data)
+                    if ":" in time_str and len(time_str) <= 5:
+                        datetime_str = f"{date_str} {time_str}"
+                        match_time = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+                        
+                        if (match_time - timedelta(hours=1)) <= now < match_time:
+                            await send_notification(context.bot, match)
+                            storage.update_match_status(match['id'], True)
+                    else:
+                        logger.warning(f"Formato de hora inválido: {time_str}")
+                        
                 except Exception as e:
                     logger.error(f"Erro na notificação: {str(e)}")
                     
@@ -179,31 +190,39 @@ async def send_notification(bot, match):
         return
 
     try:
-        dt = datetime.strptime(match['time'], "%Y-%m-%d %H:%M")
-        formatted_time = dt.strftime("%d/%m/%Y %H:%M")
+        # Combinar data e hora
+        date_str = match['date']
+        time_str = match['time']
         
-        message = (
-            f"⏰ <b>Notificação de Partida!</b>\n\n"
-            f"A partida contra {match['opponent']} começa em 1 hora!\n\n"
-            f"🏆 {match['event']}\n"
-            f"⏰ {formatted_time}\n"
-            f"🔗 {match['link']}"
-        )
-        
-        for user_id in storage.get_subscriptions():
-            try:
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=message,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True
-                )
-            except Exception as e:
-                logger.warning(f"Falha na notificação para {user_id}: {str(e)}")
-                storage.remove_subscription(user_id)
+        if ":" in time_str and len(time_str) <= 5:
+            datetime_str = f"{date_str} {time_str}"
+            dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+            formatted_time = dt.strftime("%d/%m/%Y %H:%M")
+            
+            message = (
+                f"⏰ <b>Notificação de Partida!</b>\n\n"
+                f"A partida contra {match['opponent']} começa em 1 hora!\n\n"
+                f"🏆 {match['event']}\n"
+                f"⏰ {formatted_time}\n"
+                f"🔗 {match['link']}"
+            )
+            
+            for user_id in storage.get_subscriptions():
+                try:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=message,
+                        parse_mode="HTML",
+                        disable_web_page_preview=True
+                    )
+                except Exception as e:
+                    logger.warning(f"Falha na notificação para {user_id}: {str(e)}")
+                    storage.remove_subscription(user_id)
+        else:
+            logger.warning(f"Formato de hora inválido: {time_str}")
     except Exception as e:
         logger.error(f"Erro ao enviar notificação: {str(e)}")
-
+        
 async def send_fallback(update: Update):
     await update.message.reply_text(
         "⚠️ Serviço temporariamente indisponível\n\n"

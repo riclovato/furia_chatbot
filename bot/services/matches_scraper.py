@@ -29,6 +29,7 @@ class MatchesScraper:
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
+    
 
     def _is_cache_valid(self):
         return (time.time() - self.last_update) < self.cache_ttl
@@ -47,6 +48,10 @@ class MatchesScraper:
         driver = None
         try:
             driver = self._get_driver()
+            driver.execute_cdp_cmd(
+                "Emulation.setTimezoneOverride",
+                {"timezoneId": "America/Sao_Paulo"}
+            )
             matches = self._scrape_matches(driver)
             self.cached_matches = matches
             self.last_update = time.time()
