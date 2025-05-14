@@ -1,6 +1,16 @@
 {
   "matches": [
     {
+      "id": "e3998cfb95182eb185cad9c3c7903e54",
+      "opponent": "MIBR",
+      "event": "PGL Astana 2025",
+      "date": "2025-05-16",
+      "time": "08:00",
+      "format": "",
+      "link": "https://draft5.gg/partida/36992-FURIA-vs-MIBR-PGL-Astana-2025",
+      "notified": false
+    },
+    {
       "id": "b2637f52f3b3da083c77c3b248d5b08f",
       "opponent": "The MongolZ",
       "event": "IEM Dallas 2025",
