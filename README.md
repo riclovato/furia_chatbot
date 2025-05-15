@@ -6,8 +6,6 @@ Acesse o bot no telegram:
 
 [@FuriaFansCSGO_bot](https://t.me/FuriaFansCSGO_bot)
 
-<img src="image-1.png" alt="QR Code do Bot" width="200" height="200" />
-
 ## 🛠 Tecnologias Utilizadas
 
 - Python 3.11+
