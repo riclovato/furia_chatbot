@@ -2,6 +2,11 @@
 
 Bot de Telegram para fãs do time de CS:GO FURIA!  
 Receba informações sobre próximos jogos, elenco atual, resultados e notícias diretamente no seu Telegram.
+Acesse o bot no telegram:
+
+[@FuriaFansCSGO_bot](https://t.me/FuriaFansCSGO_bot)
+
+![alt text](image.png)
 
 ## 🛠 Tecnologias Utilizadas
 
