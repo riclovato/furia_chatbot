@@ -66,12 +66,32 @@ class MatchesScraper:
     def _parse_br_date(self, date_text):
         """Converte texto de data em português para objeto datetime"""
         try:
-            # Formato: "SEXTA-FEIRA, 16 DE MAIO DE 2025"
-            m = re.search(r'(\w+)-FEIRA, (\d{1,2}) DE (\w+) DE (\d{4})', date_text, re.IGNORECASE)
-            if not m:
-                raise ValueError(f"Formato de data não reconhecido: {date_text}")
+            # Remover emojis e espaços extras
+            clean_date = re.sub(r'[^\w\s,-]', '', date_text).strip()
             
-            weekday, day, month_str, year = m.groups()
+            # Verificar se é uma data relativa (AMANHÃ, HOJE)
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            if "AMANHÃ" in clean_date:
+                logger.info(f"Processando data relativa: {clean_date} (amanhã)")
+                return today + timedelta(days=1)
+            
+            if "HOJE" in clean_date:
+                logger.info(f"Processando data relativa: {clean_date} (hoje)")
+                return today
+            
+            # Formato: "SEXTA-FEIRA, 16 DE MAIO DE 2025"
+            m = re.search(r'(\w+)-FEIRA, (\d{1,2}) DE (\w+) DE (\d{4})', clean_date, re.IGNORECASE)
+            if not m:
+                # Tentar um formato alternativo sem o dia da semana
+                m = re.search(r'(\d{1,2}) DE (\w+) DE (\d{4})', clean_date, re.IGNORECASE)
+                if m:
+                    day, month_str, year = m.groups()
+                else:
+                    raise ValueError(f"Formato de data não reconhecido: {clean_date}")
+            else:
+                weekday, day, month_str, year = m.groups()
+                
             month_str = month_str.lower()
             month_map = {
                 'janeiro': 1, 'fevereiro': 2, 'março': 3, 'abril': 4,
