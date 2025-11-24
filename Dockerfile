@@ -1,10 +1,13 @@
 FROM selenium/standalone-chrome:latest
 USER root
 
-# Instala Python, pip e tzdata (para fuso-horário)
+# Instala Python, pip e dependências para compilar libs (incluindo lxml)
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      python3 python3-pip python3-dev tzdata && \
+      python3 python3-pip python3-dev \
+      libxml2-dev libxslt1-dev \
+      build-essential \
+      tzdata && \
     ln -fs /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime && \
     dpkg-reconfigure --frontend noninteractive tzdata && \
     rm -rf /var/lib/apt/lists/*
@@ -22,7 +25,6 @@ RUN mkdir -p /app/logs && \
 
 USER seluser
 
-# Variáveis de ambiente
 ENV LOG_FILE=/app/logs/bot.log
 ENV TZ=America/Sao_Paulo
 
