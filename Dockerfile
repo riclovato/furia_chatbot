@@ -16,9 +16,9 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
 WORKDIR /app
 COPY requirements.txt .
 
-# IMPORTANTE: impedir pip de recompilar o lxml
+
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir -r requirements.txt --no-binary lxml
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
