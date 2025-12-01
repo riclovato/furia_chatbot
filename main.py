@@ -20,6 +20,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 flask_app = Flask(__name__)
+@flask_app.route('/health')
+def health():
+    return {"status": "ok"}
 
 @flask_app.route('/')
 def home():
