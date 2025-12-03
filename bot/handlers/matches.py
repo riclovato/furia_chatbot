@@ -5,6 +5,8 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, CallbackContext
 from bot.services.matches_scraper import matches_scraper
 from bot.services.storage import JSONStorage
+from bot.services.notifications import update_subscription
+
 
 logger = logging.getLogger(__name__)
 storage = JSONStorage()
@@ -135,21 +137,23 @@ async def handle_scrape_error(status_msg):
 async def handle_notification_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
-    
+
     try:
         user_id = query.from_user.id
-        action = query.data.split("_")[1]
-        
+        action = query.data.split("_")[1]  # "on" ou "off"
+
+        result = await update_subscription(user_id, action)
+
         if action == "on":
-            storage.add_subscription(user_id)
             msg = "✅ Você receberá notificações 1h antes das partidas!"
-        elif action == "off":
-            storage.remove_subscription(user_id)
-            msg = "🔕 Notificações desativadas com sucesso"
         else:
-            msg = "⚠️ Comando inválido"
-            
+            msg = "🔕 Notificações desativadas com sucesso"
+
         await query.edit_message_text(text=msg, parse_mode="HTML")
+
+    except Exception as e:
+        logger.error(f"Erro na callback: {str(e)}")
+        await query.edit_message_text(text="⚠️ Erro ao atualizar notificações")
         
     except Exception as e:
         logger.error(f"Erro na callback: {str(e)}")
